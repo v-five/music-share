@@ -13,6 +13,7 @@ module.exports = function(app){
 
 	app.use('/api/dev/search', routes.search);
 	app.use('/api/dev/match', routes.match);
+	app.use('/api/dev/playlist', routes.playlist);
 
 	app.get('/', function(req, res){
 		res.send('Welcome to my API!');

@@ -45,6 +45,10 @@ Provider.prototype.searchByUrl = function(url, done){
 
 	var match = url.href.match(/.*(?:youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#\&\?]*).*/);
 	var id = (match&&match[1].length==11)? match[1] : null;
+	this.searchById(id, done);
+};
+
+Provider.prototype.searchById = function(id, done){
 	var options = {
 		auth: 'AIzaSyAd_sQCYfImA_PL0eXFkVDo8fJb9Gcznv0',
 		part: 'snippet',
@@ -54,7 +58,7 @@ Provider.prototype.searchByUrl = function(url, done){
 		if(!data || !data.items || data.items.length == 0) done(err);
 		else done(err, map(data.items[0]));
 	});
-};
+}
 
 var map = function(data){
 	if(!data) return {};

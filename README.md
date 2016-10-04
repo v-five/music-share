@@ -12,7 +12,8 @@ prefix: */api/version/*
 
 current version is *dev*
 
-| Method | Endpoint | Attributes | Description
-|--------|----------|------------|-------------
-| GET    | search   | q          | Get tracks from all providers based on query
-| POST   | match    | url        | Post a track url and receive a url from all other providers
+| Method | Endpoint | Attributes         | Description
+|--------|----------|--------------------|-------------
+| GET    | search   | q                  | Get tracks from all providers based on query
+| POST   | match    | url                | Post a track url and receive a url from all other providers
+| POST   | playlist | url, title, tracks | Post a playlist url with a title and an array of track ids and receive a list of matched tracks

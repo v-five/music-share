@@ -44,6 +44,10 @@ Provider.prototype.search = function(options, done){
 
 Provider.prototype.searchByUrl = function(url, done){
 	var id = url.path.split('/').pop().split('?').shift();
+	this.searchById(id, done);
+};
+
+Provider.prototype.searchById = function(id, done){
 	var options = {
 		hostname:   'api.spotify.com',
 		port:       443,
@@ -58,11 +62,11 @@ Provider.prototype.searchByUrl = function(url, done){
 		else if(data.error) done(data.error.message);
 		else done(err, map(data));
 	});
-};
+}
 
 var map = function(data){
 	if(!data) return {};
-	
+
 	var artist = new models.Artist({
 		name: data['artists'][0].name,
 		services: [new models.Service({

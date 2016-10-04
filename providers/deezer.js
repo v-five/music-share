@@ -43,6 +43,10 @@ Provider.prototype.search = function(options, done){
 
 Provider.prototype.searchByUrl = function(url, done){
 	var id = url.path.split('/').pop().split('?').shift();
+	this.searchById(id, done);
+};
+
+Provider.prototype.searchById = function(id, done){
 	var options = {
 		hostname:   'api.deezer.com',
 		port:       443,
@@ -56,7 +60,7 @@ Provider.prototype.searchByUrl = function(url, done){
 		if(!data) done(err);
 		else done(err, map(data));
 	});
-};
+}
 
 var map = function(data){
 	if(!data) return {};

@@ -38,6 +38,10 @@ Provider.prototype.search = function(options, done){
 
 Provider.prototype.searchByUrl = function(url, done){
 	var id = url.path.split('/').pop().split('?').shift();
+	this.searchById(id, done);
+};
+
+Provider.prototype.searchById = function(id, done){
 	gMusicApi.initialize(function(err) {
 		if(err) done(err);
 		else
@@ -47,7 +51,7 @@ Provider.prototype.searchByUrl = function(url, done){
 				else done(err, map(data));
 			});
 	});
-};
+}
 
 var map = function(data){
 	if(!data) return {};
