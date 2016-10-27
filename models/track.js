@@ -23,6 +23,7 @@ TrackSchema.pre('save', function(next) {
 	var _this = this;
 	saveArtist(_this.artist, function(err, artist){
 		if(artist) _this.artist = artist;
+		if(!_this.album) return next();
 		saveAlbum(_this.album, function(err, album){
 			if(album) _this.album = album;
 			next();

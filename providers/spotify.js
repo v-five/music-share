@@ -9,37 +9,13 @@ var Provider = function () {
 	this.shortName = 'spotify';
 	this.name = 'Spotify';
 	this.hostname = 'open.spotify.com';
-};
-
-
-Provider.prototype.search = function(options, done){
-	options.limit = options.limit || 5;
-	options.query = options.query || options.title + " " + options.artist;
-	var opt = {
+	this.options = {
 		hostname:   'api.spotify.com',
 		port:       443,
-		path:       '/v1/search?type=track&limit=' + (options.limit < 5 ? 5 : options.limit) + '&q=' + encodeURI(options.query),
 		method:     'GET',
 		protocol:   'https:',
 		json:       true
 	};
-
-	request(opt, function(err, data){
-		if(!data || !data.tracks || !data.tracks.items || data.tracks.items.length == 0) done(err);
-		else{
-			var result = [];
-			var tracks = data.tracks.items;
-			for(var i in tracks){
-				if(options.query.toLowerCase().indexOf(tracks[i].name.toLowerCase()) > -1 &&
-					 options.query.toLowerCase().indexOf(tracks[i]['artists'][0].name.toLowerCase()) > -1
-				 ){
-					result.push(map(tracks[i]));
-					if(options.limit == 1) break;
-				}
-			}
-			done(err, result);
-		}
-	});
 };
 
 Provider.prototype.searchByUrl = function(url, done){
@@ -48,57 +24,89 @@ Provider.prototype.searchByUrl = function(url, done){
 };
 
 Provider.prototype.searchById = function(id, done){
-	var options = {
-		hostname:   'api.spotify.com',
-		port:       443,
-		path:       '/v1/tracks/'+id,
-		method:     'GET',
-		protocol:   'https:',
-		json:       true
-	};
+	this.options.path = '/v1/tracks/' + id;
 
-	request(options, function(err, data){
-		if(!data) done(err);
-		else if(data.error) done(data.error.message);
-		else done(err, map(data));
+	request(this.options, function(err, track){
+		if(err) done(err);
+		else if(track.error) done(track.error.message);
+		else done(false, mapTrack(track));
 	});
 }
 
-var map = function(data){
-	if(!data) return {};
-
-	var artist = new models.Artist({
-		name: data['artists'][0].name,
-		services: [new models.Service({
-			id: data['artists'][0].id,
-			name: 'spotify',
-			url: data['artists'][0]['external_urls']['spotify']
-		})]
-	});
-
-	var album = new models.Album({
-		title: data.album['name'],
-		services: [new models.Service({
-			id: data.album.id,
-			name: 'spotify',
-			url: data.album['external_urls']['spotify'],
-			artwork: data.album.images.shift().url
-		})]
-	});
-
-	var track = models.Track({
-		title: data.name,
-		artist: artist,
-		album: album,
-		services: [new models.Service({
-			id: data.id,
-			name: 'spotify',
-			url: data['external_urls']['spotify'],
-			artwork: data.album.images.shift().url
-		})]
-	});
-
-	return track;
+Provider.prototype.search = function(options, done){
+	this.options.path = '/v1/search?type=track&limit=' + (options.limit < 5 ? 5 : options.limit) + '&q=' + encodeURI(options.query);
+	search(this.options, done);
 };
+
+Provider.prototype.match = function(track, done){
+	this.options.path = '/v1/search?type=track&limit=5&q=' + encodeURI(track.artist.name) + '%20' + encodeURI(track.title);
+	search(this.options, function(err, tracks){
+		if(err) done(err);
+		else done(false, match(tracks, track));
+	});
+};
+
+var search = function(options, done){
+	request(options, function(err, data){
+		if(err) done(err);
+		else if(!data || !data.tracks || !data.tracks.items || data.tracks.items.length == 0) done(false, []);
+		else done(false, data.tracks.items.map(mapTrack).filter(function(track){ return track != undefined; }));
+	});
+}
+
+var match = function(tracks, track){
+	//TODO: find a better way to match tracks
+	var result = track.album.title ? tracks.filter(filterByAlbum, track.album.title) : [];
+	if(result.length > 0) return result[0];
+	return tracks[0];
+}
+
+var filterByAlbum = function(track){
+	return track.album.title.toLowerCase().indexOf(this.toLowerCase()) > -1 ||
+			this.toLowerCase().indexOf(track.album.title.toLowerCase()) > -1;
+}
+
+var mapTrack = function(track){
+	if(!track) return undefined;
+
+	return models.Track({
+		title: track.name,
+		artist: mapArtist(track.artists[0]),
+		album: mapAlbum(track.album),
+		services: [new models.Service({
+			id: track.id,
+			name: 'spotify',
+			url: track.external_urls.spotify,
+			artwork: track.album.images.shift().url
+		})]
+	});
+};
+
+var mapArtist = function(artist){
+	if(!artist) return undefined;
+
+	return new models.Artist({
+		name: artist.name,
+		services: [new models.Service({
+			id: artist.id,
+			name: 'spotify',
+			url: artist.external_urls.spotify
+		})]
+	});
+}
+
+var mapAlbum = function(album){
+	if(!album) return undefined;
+
+	return new models.Album({
+		title: album.name,
+		services: [new models.Service({
+			id: album.id,
+			name: 'spotify',
+			url: album.external_urls.spotify,
+			artwork: album.images.shift().url
+		})]
+	});
+}
 
 module.exports = new Provider();

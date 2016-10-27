@@ -11,31 +11,6 @@ var Provider = function () {
 	this.hostname = 'play.google.com';
 };
 
-Provider.prototype.search = function(options, done){
-	options.limit = options.limit || 5;
-	options.query = options.query || options.title + " " + options.artist;
-	gMusicApi.initialize(function(err) {
-		if(err) done(err);
-		else
-		gMusicApi.search(options.query, (options.limit < 5 ? 5 : options.limit), function (err, data) {
-			if (!data || !data['entries']) done(err);
-			else {
-				var result = [];
-				for (var i = 0; i < data['entries'].length; i++) {
-					if (data['entries'][i].type === '1' &&
-						options.query.toLowerCase().indexOf(data['entries'][i].track.title.toLowerCase()) > -1 &&
-						options.query.toLowerCase().indexOf(data['entries'][i].track.artist.toLowerCase()) > -1
-					){
-						result.push(map(data['entries'][i].track));
-						if(options.limit == 1) break;
-					}
-				}
-				done(err, result);
-			}
-		});
-	});
-};
-
 Provider.prototype.searchByUrl = function(url, done){
 	var id = url.path.split('/').pop().split('?').shift();
 	this.searchById(id, done);
@@ -43,51 +18,97 @@ Provider.prototype.searchByUrl = function(url, done){
 
 Provider.prototype.searchById = function(id, done){
 	gMusicApi.initialize(function(err) {
-		if(err) done(err);
-		else
-			gMusicApi.getAllAccessTrack(id, function (err, data) {
-				if (!data) done(err);
-				else if(data.error) done(data.error.message);
-				else done(err, map(data));
-			});
+		if(err) return done(err);
+		gMusicApi.getAllAccessTrack(id, function (err, track) {
+			if (err) done(err);
+			else if(!track) done(false, undefined);
+			else if(track.error) done(track.error.message);
+			else done(err, mapTrack(track));
+		});
 	});
 }
 
-var map = function(data){
-	if(!data) return {};
+Provider.prototype.search = function(options, done){
+	options.limit = options.limit || 5;
+	options.query = options.query;
+	search(options, done);
+};
 
-	var artist = new models.Artist({
-			name: data['artist'],
+Provider.prototype.match = function(track, done){
+	var options = {};
+	options.limit = 5;
+	options.query = track.artist.name + " " + track.title;
+	search(options, function(err, tracks){
+		if(err) done(err);
+		else done(false, match(tracks, track));
+	});
+}
+
+var search = function(options, done){
+	gMusicApi.initialize(function(err) {
+		if(err) return done(err);
+		var limit = options.limit || 5
+		gMusicApi.search(options.query, limit + 5, function (err, data) {
+			if (err) done(err);
+			else if(!data || !data.entries) done(false, []);
+			else done(false, data.entries.filter(function(entry){ return entry.type == 1; }).splice(limit).map(function(entry) {return entry.track;}).map(mapTrack).filter(function(track){ return track != undefined; }));
+		});
+	});
+}
+
+var match = function(tracks, track){
+	//TODO: find a better way to match tracks
+	var result = track.album.title ? tracks.filter(filterByAlbum, track.album.title) : [];
+	if(result.length > 0) return result[0];
+	return tracks[0];
+}
+
+var filterByAlbum = function(track){
+	return track.album.title.toLowerCase().indexOf(this.toLowerCase()) > -1 ||
+			this.toLowerCase().indexOf(track.album.title.toLowerCase()) > -1;
+}
+
+var mapTrack = function(track){
+	if(!track) return undefined;
+
+	return new models.Track({
+		title: track.title,
+		artist: mapArtist(track),
+		album: mapAlbum(track),
+		services: [new models.Service({
+			id: track.nid,
+			name: 'gMusic',
+			url: "https://play.google.com/music/r/m/" + track.nid + "?signup_if_needed=1",
+			artwork: track.albumArtRef ? track.albumArtRef[0].url : undefined
+		})]
+	});
+};
+
+var mapArtist = function(track){
+	if(!track.artistId) return undefined;
+
+	return new models.Artist({
+			name: track.artist,
 			services: [new models.Service({
-				id: data['artistId'][0],
+				id: track.artistId[0],
 				name: 'gMusic',
-				url: "https://play.google.com/music/listen#/artist/" + data['artistId'][0]
+				url: "https://play.google.com/music/listen#/artist/" + track.artistId[0]
 			})]
 	});
+}
 
-	var album = new models.Album({
-		title: data.album,
+var mapAlbum = function(track){
+	if(!track.albumId) return undefined;
+
+	return new models.Album({
+		title: track.album,
 		services: [new models.Service({
-			id: data['albumId'],
+			id: track.albumId,
 			name: 'gMusic',
-			url: "https://play.google.com/music/listen#/album/" + data['albumId'],
-			artwork: data['albumArtRef'][0].url
+			url: "https://play.google.com/music/listen#/album/" + track.albumId,
+			artwork: track.albumArtRef[0].url
 		})]
 	});
-
-	var track = new models.Track({
-		title: data.title,
-		artist: artist,
-		album: album,
-		services: [new models.Service({
-			id: data.nid,
-			name: 'gMusic',
-			url: "https://play.google.com/music/r/m/" + data.nid + "?signup_if_needed=1",
-			artwork: data['albumArtRef'][0].url
-		})]
-	});
-
-	return track;
-};
+}
 
 module.exports = new Provider();

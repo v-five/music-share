@@ -10,7 +10,8 @@ module.exports.get = function(req, res){
 	if(!q) res.status(400).send("The request doesn't contain any query.");
 
 	providers.search({query:q}, function(errors, data){
-		if(errors.length) console.log(errors);
-		res.json(data);
+		if(errors) res.status(501).send(errors);
+		else if(!data) res.status(404).send("No tracks found!");
+		else res.json(data);
 	});
 };

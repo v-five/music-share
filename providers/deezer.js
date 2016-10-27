@@ -9,36 +9,13 @@ var Provider = function () {
 	this.shortName = 'deezer';
 	this.name = 'Deezer';
 	this.hostname = 'www.deezer.com';
-};
-
-Provider.prototype.search = function(options, done){
-	options.limit = options.limit || 5;
-	options.query = options.query || options.title + " " + options.artist;
-	var opt = {
+	this.options = {
 		hostname:   'api.deezer.com',
 		port:       443,
-		path:       '/search?q='+ encodeURI(options.query),
 		method:     'GET',
 		protocol:   'https:',
 		json:       true
 	};
-
-	request(opt, function(err, data){
-		if(!data || !data.data || data.data.length == 0) done(err);
-		else{
-			var tracks = data.data;
-			var result = [];
-			for(var i in tracks){
-				if (options.query.toLowerCase().indexOf(tracks[i].title.toLowerCase()) > -1 &&
-						options.query.toLowerCase().indexOf(tracks[i]['artist'].name.toLowerCase()) > -1
-				 ){
-					result.push(map(tracks[i]));
-					if(options.limit == 1) break;
-				}
-			}
-			done(err, result);
-		}
-	});
 };
 
 Provider.prototype.searchByUrl = function(url, done){
@@ -47,57 +24,88 @@ Provider.prototype.searchByUrl = function(url, done){
 };
 
 Provider.prototype.searchById = function(id, done){
-	var options = {
-		hostname:   'api.deezer.com',
-		port:       443,
-		path:       '/track/'+id,
-		method:     'GET',
-		protocol:   'https:',
-		json:       true
-	};
-
-	request(options, function(err, data){
-		if(!data) done(err);
-		else done(err, map(data));
+	this.options.path = '/track/'+id;
+	request(this.options, function(err, track){
+		if(err) done(err);
+		else if(!track) done(false, undefined);
+		else done(false, mapTrack(track));
 	});
 }
 
-var map = function(data){
-	if(!data) return {};
+Provider.prototype.search = function(options, done){
+	this.options.path = '/search?q='+ encodeURI(options.query) + '&limit=' + (options.limit < 5 ? 5 : options.limit);
+	search(this.options, done);
+};
 
-	var artist = new models.Artist({
-			name: data['artist']['name'],
+Provider.prototype.match = function(track, done){
+	this.options.path = '/search?q=artist:"' + encodeURI(track.artist.name) + '"%20track:"' + encodeURI(track.title) + '"';
+	search(this.options, function(err, tracks){
+		if(err) done(err);
+		else done(false, match(tracks, track));
+	});
+};
+
+var search = function(options, done){
+	request(options, function(err, tracks){
+		if(err) done(err);
+		else done(false, (tracks ? tracks.data || [] : []).map(mapTrack).filter(function(track){ return track != undefined; }));
+	});
+}
+
+var match = function(tracks, track){
+	//TODO: find a better way to match tracks
+	var result = track.album.title ? tracks.filter(filterByAlbum, track.album.title) : [];
+	if(result.length > 0) return result[0];
+	return tracks[0];
+}
+
+var filterByAlbum = function(track){
+	return track.album.title.toLowerCase().indexOf(this.toLowerCase()) > -1 ||
+			this.toLowerCase().indexOf(track.album.title.toLowerCase()) > -1;
+}
+
+var mapTrack = function(track){
+	if(!track) return undefined;
+
+	return new models.Track({
+		title: track.title.replace(/ *\([^)]*\) */g, " ").trim(),
+		artist: mapArtist(track.artist),
+		album: mapAlbum(track.album),
+		services: [new models.Service({
+			id: track.id,
+			name: 'deezer',
+			url: track.link,
+			artwork: track.album ? track.album['cover_big'] : ''
+		})]
+	});
+};
+
+var mapArtist = function(artist){
+	if(!artist) return undefined;
+
+	return new models.Artist({
+			name: artist.name,
 			services: [new models.Service({
-				id: data['artist']['id'],
+				id: artist.id,
 				name: 'deezer',
-				url: data['album']['link'],
-				artwork: data.album ? data.album['cover_big'] : ''
+				url: artist.link,
+				artwork: artist['picture_big']
 			})]
 	});
+}
 
-	var album = data.album ? new models.Album({
-		title: data.album['title'],
-		services: [new models.Service({
-			id: data['album']['id'],
-			name: 'deezer',
-			url: "http://www.deezer.com/album/" + data['album']['id'],
-			artwork: data.album['cover_big']
-		})]
-	}) : new models.Album();
+var mapAlbum = function(album){
+	if(!album) return undefined;
 
-	var track = new models.Track({
-		title: data.title.replace(/ *\([^)]*\) */g, " ").trim(),
-		artist: artist,
-		album: album,
+	return new models.Album({
+		title: album.title,
 		services: [new models.Service({
-			id: data.id,
+			id: album.id,
 			name: 'deezer',
-			url: data.link,
-			artwork: data.album ? data.album['cover_big'] : ''
+			url: "http://www.deezer.com/album/" + album.id,
+			artwork: album['cover_big']
 		})]
 	});
-
-	return track;
-};
+}
 
 module.exports = new Provider();
