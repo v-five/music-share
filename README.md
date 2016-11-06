@@ -17,3 +17,10 @@ current version is *dev*
 | GET    | search   | q                  | Get tracks from all providers based on query
 | POST   | match    | url                | Post a track url and receive a url from all other providers
 | POST   | playlist | url, title, tracks | Post a playlist url with a title and an array of track ids and receive a list of matched tracks
+
+
+To run the angular 2 web app, go to ./public/angular2 and run:
+_> npm install
+_> npm start
+
+then navigate to localhost:8080
