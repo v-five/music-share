@@ -41,7 +41,7 @@ Provider.prototype.search = function(options, done){
 
 Provider.prototype.match = function(track, done){
 	this.options.maxResults = 5;
-	this.options.q = encodeURI(track.artist.name) + "%20" + encodeURI(track.title);
+	this.options.q = track.artist.name + " " + track.title;
 	search(this.options, function(err, tracks){
 		if(err) done(err);
 		else done(false, match(tracks, track))
